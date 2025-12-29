@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>CSVから日韓読み上げ</title>
+<style>
+ body { font-family: Arial; line-height: 1.8; padding: 20px; }
+ button { padding: 8px 14px; margin-right: 6px; }
+</style>
+</head>
+<body>
+
+<h2>CSV → 日本語 / 韓国語 読み上げ</h2>
+<p>
+  <button onclick="loadCsv()">📥 CSVを読み込む</button>
+  <button onclick="startTTS()">▶ 読み上げ開始</button>
+  <button onclick="stopTTS()">⏹ 停止</button>
+</p>
+
+<div id="status">未読み込み</div>
+
+<script>
+let rows = [];
+let idx = 0;
+
+async function loadCsv() {
+  const status = document.getElementById("status");
+  try {
+    const res = await fetch("kankoku.csv");
+    if (!res.ok) {
+      status.textContent = "エラー: HTTP " + res.status;
+      return;
+    }
+    const text = await res.text();
+    rows = text.trim().split("\n").map(l => l.split(","));
+    status.textContent = `読み込み完了：${rows.length} 行`;
+  } catch (e) {
+    status.textContent = "エラー: " + e.message;
+    console.error(e);
+  }
+}
+
+function speak(text, lang, cb){
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = lang;
+  u.onend = cb;
+  speechSynthesis.speak(u);
+}
+
+function startTTS(){
+  if (!rows.length) {
+    alert("先に CSV を読み込んでください");
+    return;
+  }
+  speechSynthesis.cancel();
+  idx = 0;
+  speakNext();
+}
+
+function speakNext(){
+  if (idx >= rows.length) return;
+
+  const jp = rows[idx][0]; // 日本語
+  const ko = rows[idx][2]; // ハングル
+
+  speak(jp, "ja-JP", () => {
+    speak(ko, "ko-KR", () => {
+      idx++;
+      speakNext();
+    });
+  });
+}
+
+function stopTTS(){
+  speechSynthesis.cancel();
+}
+</script>
+
+
+</body>
+</html>
