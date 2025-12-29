@@ -5,8 +5,9 @@
 <title>CSVから日韓読み上げ</title>
 <style>
  body { font-family: Arial; line-height: 1.8; padding: 20px; }
- button { padding: 8px 14px; margin-right: 6px; }
- textarea { width: 100%; height: 200px; font-size: 14px; }
+ button { padding: 8px 14px; margin: 4px 6px 4px 0; }
+ textarea { width: 100%; height: 220px; font-size: 14px; }
+ select { padding: 6px; }
 </style>
 </head>
 <body>
@@ -14,8 +15,18 @@
 <h2>CSV → 日本語 / 韓国語 読み上げ</h2>
 
 <p>
-  <button onclick="startTTS()">▶ 読み上げ開始</button>
+  CSV選択：
+  <select id="csvSelect" onchange="loadCsv()">
+    <option value="kankoku1.csv">kankoku1.csv</option>
+    <option value="kankoku2.csv">kankoku2.csv</option>
+  </select>
+</p>
+
+<p>
+  <button onclick="startTTS()">▶ 読み上げ開始（ループ）</button>
   <button onclick="stopTTS()">⏹ 停止</button>
+  <button onclick="copyText()">📋 コピー</button>
+  <button onclick="clearText()">🧹 消去</button>
 </p>
 
 <div id="status">CSV 読み込み中...</div>
@@ -24,31 +35,45 @@
 
 <script>
 let idx = 0;
+let looping = true;
+const STORAGE_KEY = "csv_edit_text";
 
-// 🔹 ページ表示時に CSV 自動読み込み
-window.addEventListener("DOMContentLoaded", () => loadCsv());
+// 🔹 起動時：保存データを復元 ＋ CSV読み込み
+window.addEventListener("DOMContentLoaded", () => {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    document.getElementById("csvBox").value = saved;
+    document.getElementById("status").textContent = "保存データを復元しました";
+  }
+  loadCsv();   // CSVも読み込み（後から上書きされる想定）
+});
+
+// 🔹 編集内容を自動保存
+document.getElementById("csvBox").addEventListener("input", e => {
+  localStorage.setItem(STORAGE_KEY, e.target.value);
+  document.getElementById("status").textContent = "自動保存しました";
+});
 
 async function loadCsv() {
   const status = document.getElementById("status");
   const box = document.getElementById("csvBox");
+  const file = document.getElementById("csvSelect").value;
 
   try {
-    const res = await fetch("kankoku.csv");
+    const res = await fetch(file);
     if (!res.ok) {
       status.textContent = "エラー: HTTP " + res.status;
       return;
     }
-
     const text = await res.text();
 
-    // 🔹 テキストボックスへ表示（編集可）
-    box.value = text.trim();
-
-    status.textContent = "読み込み完了（編集してOK）";
-
+    // 🔹 保存データが無い時のみ CSV を適用
+    if (!localStorage.getItem(STORAGE_KEY)) {
+      box.value = text.trim();
+      status.textContent = `読み込み完了：${file}`;
+    }
   } catch (e) {
     status.textContent = "エラー: " + e.message;
-    console.error(e);
   }
 }
 
@@ -62,19 +87,21 @@ function speak(text, lang, cb){
 function startTTS(){
   speechSynthesis.cancel();
   idx = 0;
+  looping = true;
   speakNext();
 }
 
 function speakNext(){
   const lines = document.getElementById("csvBox").value
-      .split("\n")
-      .map(l => l.split(","))
-      .filter(x => x.length >= 3);
+    .split("\n")
+    .map(l => l.split(","))
+    .filter(x => x.length >= 3);
 
-  if (idx >= lines.length) return;
+  if (!looping || !lines.length) return;
+  if (idx >= lines.length) idx = 0;
 
-  const jp = lines[idx][0]; // 日本語
-  const ko = lines[idx][2]; // 韓国語（ハングル）
+  const jp = lines[idx][0];
+  const ko = lines[idx][2];
 
   speak(jp, "ja-JP", () => {
     speak(ko, "ko-KR", () => {
@@ -85,7 +112,20 @@ function speakNext(){
 }
 
 function stopTTS(){
+  looping = false;
   speechSynthesis.cancel();
+}
+
+function copyText(){
+  const text = document.getElementById("csvBox").value;
+  navigator.clipboard?.writeText(text);
+  document.getElementById("status").textContent = "コピーしました";
+}
+
+function clearText(){
+  document.getElementById("csvBox").value = "";
+  localStorage.removeItem(STORAGE_KEY);
+  document.getElementById("status").textContent = "消去しました（保存データも削除）";
 }
 </script>
 
