@@ -6,34 +6,46 @@
 <style>
  body { font-family: Arial; line-height: 1.8; padding: 20px; }
  button { padding: 8px 14px; margin-right: 6px; }
+ textarea { width: 100%; height: 200px; font-size: 14px; }
 </style>
 </head>
 <body>
 
 <h2>CSV → 日本語 / 韓国語 読み上げ</h2>
+
 <p>
-  <button onclick="loadCsv()">📥 CSVを読み込む</button>
   <button onclick="startTTS()">▶ 読み上げ開始</button>
   <button onclick="stopTTS()">⏹ 停止</button>
 </p>
 
-<div id="status">未読み込み</div>
+<div id="status">CSV 読み込み中...</div>
+
+<textarea id="csvBox"></textarea>
 
 <script>
-let rows = [];
 let idx = 0;
+
+// 🔹 ページ表示時に CSV 自動読み込み
+window.addEventListener("DOMContentLoaded", () => loadCsv());
 
 async function loadCsv() {
   const status = document.getElementById("status");
+  const box = document.getElementById("csvBox");
+
   try {
     const res = await fetch("kankoku.csv");
     if (!res.ok) {
       status.textContent = "エラー: HTTP " + res.status;
       return;
     }
+
     const text = await res.text();
-    rows = text.trim().split("\n").map(l => l.split(","));
-    status.textContent = `読み込み完了：${rows.length} 行`;
+
+    // 🔹 テキストボックスへ表示（編集可）
+    box.value = text.trim();
+
+    status.textContent = "読み込み完了（編集してOK）";
+
   } catch (e) {
     status.textContent = "エラー: " + e.message;
     console.error(e);
@@ -48,20 +60,21 @@ function speak(text, lang, cb){
 }
 
 function startTTS(){
-  if (!rows.length) {
-    alert("先に CSV を読み込んでください");
-    return;
-  }
   speechSynthesis.cancel();
   idx = 0;
   speakNext();
 }
 
 function speakNext(){
-  if (idx >= rows.length) return;
+  const lines = document.getElementById("csvBox").value
+      .split("\n")
+      .map(l => l.split(","))
+      .filter(x => x.length >= 3);
 
-  const jp = rows[idx][0]; // 日本語
-  const ko = rows[idx][2]; // ハングル
+  if (idx >= lines.length) return;
+
+  const jp = lines[idx][0]; // 日本語
+  const ko = lines[idx][2]; // 韓国語（ハングル）
 
   speak(jp, "ja-JP", () => {
     speak(ko, "ko-KR", () => {
@@ -75,7 +88,6 @@ function stopTTS(){
   speechSynthesis.cancel();
 }
 </script>
-
 
 </body>
 </html>
